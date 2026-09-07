@@ -1,0 +1,35 @@
+# --- Secrets — never commit these (see AGENT.md §8) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Claude Code local/machine-specific state (not the shared skills/commands)
+.claude/settings.local.json
+.claude/*.local.*
+
+# --- dbt ---
+target/
+dbt_packages/
+logs/
+.user.yml
+
+# --- Meltano ---
+.meltano/
+output/
+
+# --- Dagster ---
+.dagster_home/
+storage/
+
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# --- OS ---
+.DS_Store
+Thumbs.db

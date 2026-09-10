@@ -1,0 +1,31 @@
+# Direct dependencies for the local dev/analytics environment.
+# Create the venv IN THE PROJECT (never install globally):
+#
+#   python -m venv .venv
+#   .venv\Scripts\python -m pip install -U pip
+#   .venv\Scripts\pip install -r requirements.txt
+#
+# `requirements.lock.txt` is the full `pip freeze` of a known-good env —
+# use it (`pip install -r requirements.lock.txt`) for an exact reproduce.
+#
+# Windows note: this repo lives under a long path. `.venv` inside it is
+# still shorter than a global/Store-Python site-packages path, but if pip
+# hits a MAX_PATH error, enable long paths (admin):
+#   Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' LongPathsEnabled 1
+# `git config core.longpaths true` is already set for this repo.
+
+# --- transformation ---
+dbt-core==1.12.3
+dbt-fabricspark==1.13.4
+
+# --- linting ---
+sqlfluff==4.3.0
+sqlfluff-templater-dbt==4.3.0
+
+# --- task runner (poe) ---
+poethepoet==0.48.0
+
+# --- helper scripts (upload_to_onelake.py, delta-load simulators, onboarding) ---
+azure-identity==1.25.3
+requests==2.34.2
+py7zr==1.1.3

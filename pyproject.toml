@@ -3,27 +3,28 @@
 # `dbt/profiles.yml`'s `env_var('FABRIC_*')` lookups resolve without having
 # to `source .env` / dot-source it first.
 #
-# One-time setup:
-#   C:\dbtenv\Scripts\pip.exe install poethepoet
+# One-time setup (see requirements.txt — install into the project .venv,
+# never globally):
+#   python -m venv .venv
+#   .venv\Scripts\pip install -r requirements.txt
 #
-# Usage (PowerShell):
+# Usage (PowerShell — no need to activate .venv; poe runs tasks inside it):
 #   poe dbt debug
 #   poe dbt build --select bronze_contoso__product+
 #   poe dbt run-operation bootstrap_landing_table --args '{entity: product, ...}'
 #   poe lint
 #   poe upload --local data/contoso/product.csv --remote Files/contoso/product.csv
 #
-# `[tool.poe.executor]` points at the short-path venv this project uses on
-# Windows (the `C:\dbtenv` MAX_PATH workaround — see AGENT.md). If your venv
-# lives elsewhere, change `location`; or delete the `[tool.poe.executor]`
-# block entirely and activate your venv before calling `poe`.
+# `[tool.poe.executor]` runs every task inside the project-local `.venv`.
+# If your venv lives elsewhere, change `location`; or delete the
+# `[tool.poe.executor]` block and activate your venv before calling `poe`.
 
 [tool.poe]
 envfile = ".env"
 
 [tool.poe.executor]
 type = "virtualenv"
-location = "C:/dbtenv"
+location = ".venv"
 
 [tool.poe.tasks.dbt]
 cmd = "dbt"

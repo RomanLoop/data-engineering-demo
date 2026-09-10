@@ -20,6 +20,22 @@ End-to-end build of a modern data engineering stack on Microsoft Fabric, from in
 
 Architecture and tooling decisions are proposals and will be revisited/improved as the project progresses — document change proposals here, not only in chat.
 
+**Local dev environment (Python):** a project-local `.venv` — never install into the global/Store Python.
+
+```powershell
+python -m venv .venv
+.venv\Scripts\pip install -r requirements.txt   # exact reproduce: requirements.lock.txt
+```
+
+Run everything through **[poe](https://poethepoet.natn.io/)** (`pyproject.toml`), which loads the repo-root `.env` so `profiles.yml`'s `env_var('FABRIC_*')` resolves without sourcing it first — no need to activate `.venv`:
+
+```powershell
+poe dbt debug ; poe dbt build --select bronze_contoso__product+ ; poe lint
+poe upload --local data/contoso/product.csv --remote Files/contoso/product.csv
+```
+
+`git config core.longpaths true` is set for this repo. The `.venv` path is shorter than a Store-Python site-packages path, so the deep `dbt-fabricspark` tree installs fine; if pip ever hits MAX_PATH, enable long paths in the registry (admin). The earlier `C:\dbtenv` short-path workaround venv is superseded and can be deleted.
+
 ## 3. Guiding principles
 
 1. **Idempotency** — every run (ingestion and transformation alike) can be repeated any number of times without creating duplicates or inconsistent state.

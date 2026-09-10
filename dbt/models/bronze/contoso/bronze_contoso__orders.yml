@@ -45,3 +45,10 @@ models:
         description: Technical column — sha2(256) over business_key + dedup_columns.
         constraints:
           - type: not_null
+      - name: order_year
+        data_type: int
+        description: >
+          Derived partition key — year(OrderDate). Nullable to mirror
+          OrderDate (no not_null constraint on it); a null order date would
+          land in Delta's default partition. Listed last to match Delta's
+          physical partition-column ordering.

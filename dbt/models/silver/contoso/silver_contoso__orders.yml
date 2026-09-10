@@ -56,3 +56,10 @@ models:
         description: Technical column — when a tracked column last actually changed. Only bumps when _scd1_hash differs from the previously stored value (see apply_scd1_updated_at_expr) — a rerun with no real change leaves this untouched.
         constraints:
           - type: not_null
+      - name: order_year
+        data_type: int
+        description: >
+          Partition key — year(order_date), carried through from bronze. In
+          merge_update_columns (not the hash) so a corrected order_date that
+          crosses a year boundary also relocates the row's partition. Listed
+          last to match Delta's physical partition-column ordering.

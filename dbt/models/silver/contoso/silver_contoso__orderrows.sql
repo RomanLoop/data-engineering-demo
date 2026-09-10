@@ -32,9 +32,9 @@ _new_or_changed as (
     select _cleansed.*
     from _cleansed
     left anti join {{ this }} as _dbt_scd1_target
-        on _dbt_scd1_target.order_key = _cleansed.order_key
-       and _dbt_scd1_target.line_number = _cleansed.line_number
-       and _dbt_scd1_target._scd1_hash = _cleansed._scd1_hash
+        on _cleansed.order_key = _dbt_scd1_target.order_key
+       and _cleansed.line_number = _dbt_scd1_target.line_number
+       and _cleansed._scd1_hash = _dbt_scd1_target._scd1_hash
 
 ),
 {% else %}

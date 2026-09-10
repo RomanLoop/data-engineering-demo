@@ -11,6 +11,9 @@ select
     cast(OrderDate as date) as order_date,
     cast(DeliveryDate as date) as delivery_date,
     CurrencyCode as currency_code,
-    _ingested_at
+    _ingested_at,
+    -- Partition key, carried through from bronze unchanged (year(OrderDate)).
+    -- Kept last to match the partitioned downstream models' contract order.
+    order_year
 
 from {{ ref('bronze_contoso__orders') }}

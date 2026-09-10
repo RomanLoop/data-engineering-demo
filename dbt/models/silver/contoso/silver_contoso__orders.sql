@@ -3,7 +3,8 @@
     materialized='incremental',
     incremental_strategy='merge',
     unique_key='order_key',
-    on_schema_change='append_new_columns'
+    on_schema_change='append_new_columns',
+    partition_by=['order_year']
   )
 }}
 
@@ -15,7 +16,70 @@
 {% set _business_key = model.meta.business_key | default([]) %}
 {% set _scd1_columns = model.meta.scd1_columns | default([]) %}
 
-{{ config(merge_update_columns=apply_scd1_merge_update_columns()) }}
+{#- order_year is a pure function of order_date (already in scd1_columns), so
+    it is NOT added to the hash — it is appended to the MERGE update set only,
+    so a corrected order_date that crosses a year boundary also moves the row
+    to its new partition. -#}
+{{ config(merge_update_columns=apply_scd1_merge_update_columns() + ['order_year']) }}
+
+{#- PERF (partition pruning, 2026-09-10): restrict the SCD1 MERGE to just the
+    order_year partitions this run can touch. The predicate is ANDed into the
+    MERGE ON clause, so it MUST be a *superset* of every partition holding a
+    row that could match an incoming key, or an excluded real match would be
+    re-inserted as a duplicate. That superset is:
+      (years of cleansed rows arriving since the last merge)
+        ∪ (existing target years for those same order_keys)
+    the second set covering an order_date correction across a year boundary.
+    Baked as a literal `in (...)` list (no subquery — Delta MERGE ON rejects
+    correlated subqueries). No new data → probe returns nothing → `in (-1)`
+    → zero partitions scanned (P2 already makes the source empty too).
+
+    Guards:
+      - `execute` — the parse-time config-extraction pass is a no-op
+        (run_query returns None there).
+      - `flags.WHICH in ('run', 'build')` — only an actual materialization
+        needs the predicate; don't fire a warehouse query on every
+        `compile` / `docs generate` / sqlfluff templater pass.
+      - `order_year` present on the target — until the one-time partition
+        rebuild has happened the column doesn't exist yet; skip the probe
+        (plain full MERGE) rather than crash on an unresolved column. -#}
+{%- set _year_predicate = none -%}
+{%- set _target_has_order_year = false -%}
+{%- if execute and is_incremental() and flags.WHICH in ('run', 'build') -%}
+    {%- set _target_cols = adapter.get_columns_in_relation(this) | map(attribute='name') | map('lower') | list -%}
+    {%- set _target_has_order_year = 'order_year' in _target_cols -%}
+{%- endif -%}
+{%- if _target_has_order_year -%}
+    {%- set _touched_years_query -%}
+        with _wm as (
+            select coalesce(max(_ingested_at), timestamp '1900-01-01') as wm
+            from {{ this }}
+        ),
+        _incoming_keys as (
+            select order_key, order_year
+            from {{ ref('silver_contoso__orders_cleansed') }}
+            where _ingested_at > (select wm from _wm)
+        )
+        select distinct oy
+        from (
+            select order_year as oy from _incoming_keys
+            union
+            select t.order_year as oy
+            from {{ this }} as t
+            where t.order_key in (select order_key from _incoming_keys)
+        ) as _years
+        where oy is not null
+    {%- endset -%}
+    {%- set _result = run_query(_touched_years_query) -%}
+    {%- if _result is not none -%}
+        {%- set _years = _result.columns[0].values() | list -%}
+        {%- set _year_predicate = 'DBT_INTERNAL_DEST.order_year in ('
+            ~ (_years | join(', ') if _years else '-1') ~ ')' -%}
+    {%- endif -%}
+{%- endif -%}
+{%- if _year_predicate is not none -%}
+{{ config(incremental_predicates=[_year_predicate]) }}
+{%- endif -%}
 
 {#- silver_contoso__orders_cleansed is a straight passthrough of bronze's
     full append-only history, so a business key can appear more than once
@@ -50,8 +114,8 @@ _new_or_changed as (
     select _cleansed.*
     from _cleansed
     left anti join {{ this }} as _dbt_scd1_target
-        on _dbt_scd1_target.order_key = _cleansed.order_key
-       and _dbt_scd1_target._scd1_hash = _cleansed._scd1_hash
+        on _cleansed.order_key = _dbt_scd1_target.order_key
+       and _cleansed._scd1_hash = _dbt_scd1_target._scd1_hash
 
 ),
 {% else %}
@@ -87,7 +151,8 @@ select
     _incoming._ingested_at,
     _incoming._scd1_hash,
     {{ current_run_timestamp() }} as _loaded_at,
-    {{ apply_scd1_updated_at_expr(is_incremental()) }} as _updated_at
+    {{ apply_scd1_updated_at_expr(is_incremental()) }} as _updated_at,
+    _incoming.order_year
 from _incoming
 {% if is_incremental() %}
 {{ apply_scd1_existing_join(this, _business_key) }}

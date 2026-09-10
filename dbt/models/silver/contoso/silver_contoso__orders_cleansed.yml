@@ -35,3 +35,6 @@ models:
         description: Technical column, carried through from bronze.
         tests:
           - not_null
+      - name: order_year
+        data_type: int
+        description: Partition key, carried through from bronze — year(OrderDate).

@@ -1,0 +1,41 @@
+name: "data_engineering_demo"
+version: "1.0.0"
+config-version: 2
+
+profile: "data_engineering_demo"
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+analysis-paths: ["analyses"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# Real per-layer schemas (AGENT.md §7 naming map) — requires a
+# schema-enabled Fabric Lakehouse (2026-09-09: recreated `lh_contoso` with
+# `creationPayload.enableSchemas: true`; a default, non-schema-enabled
+# lakehouse silently ignores `+schema:` — see
+# specs/001-onboard-contoso-customers/tasks.md T020 notes for that earlier
+# dead end) plus profiles.yml's `schema: dbo` (must differ from the
+# lakehouse name to turn schema-enabled mode on client-side) and
+# dbt/macros/generate_schema_name.sql (so `+schema: bronze` resolves to
+# exactly `bronze`, not dbt's default `dbo_bronze`). Additive schema
+# evolution stays the repo-wide default (AGENT.md §3 principle III /
+# constitution III).
+models:
+  data_engineering_demo:
+    +on_schema_change: append_new_columns
+    bronze:
+      +schema: bronze
+      +materialized: incremental
+      +incremental_strategy: append
+    silver:
+      +schema: silver
+    gold:
+      +schema: gold
+      +materialized: table
+    serving:
+      +schema: serving
+      +materialized: view

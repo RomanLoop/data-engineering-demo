@@ -1,0 +1,49 @@
+version: 2
+
+models:
+  - name: serving_date
+    description: Consumable view over gold_date. No row-level security for this change.
+    config:
+      contract:
+        enforced: true
+    meta:
+      business_key: [date_key]
+    columns:
+      - name: date
+        data_type: date
+      - name: date_key
+        data_type: int
+        description: Business key.
+        tests:
+          - not_null
+          - unique
+      - name: year
+        data_type: int
+      - name: year_quarter
+        data_type: string
+      - name: year_quarter_number
+        data_type: int
+      - name: quarter
+        data_type: int
+      - name: year_month
+        data_type: string
+      - name: year_month_short
+        data_type: string
+      - name: year_month_number
+        data_type: int
+      - name: month
+        data_type: string
+      - name: month_short
+        data_type: string
+      - name: month_number
+        data_type: int
+      - name: day_of_week
+        data_type: string
+      - name: day_of_week_short
+        data_type: string
+      - name: day_of_week_number
+        data_type: int
+      - name: working_day
+        data_type: int
+      - name: working_day_number
+        data_type: int

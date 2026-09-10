@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: serving_currencyexchange
+    description: Consumable view over gold_currencyexchange. No row-level security for this change.
+    config:
+      contract:
+        enforced: true
+    meta:
+      business_key: [date, from_currency, to_currency]
+    columns:
+      - name: date
+        data_type: date
+        description: Business key component.
+        tests:
+          - not_null
+      - name: from_currency
+        data_type: string
+        description: Business key component.
+        tests:
+          - not_null
+      - name: to_currency
+        data_type: string
+        description: Business key component.
+        tests:
+          - not_null
+      - name: exchange
+        data_type: double

@@ -1,0 +1,59 @@
+version: 2
+
+models:
+  - name: silver_contoso__date
+    description: >
+      Cleansed calendar reference data, latest row per date_key (see model
+      SQL comment for why a plain "no SCD" view still needs a row_number()
+      dedup). No `meta.scd1_columns`/`scd2_columns` — omitted entirely
+      (not `[]`), per AGENT.md §6/§12: static reference data isn't
+      SCD-managed at all.
+    config:
+      contract:
+        enforced: true
+    meta:
+      business_key: [date_key]
+    columns:
+      - name: date
+        data_type: date
+      - name: date_key
+        data_type: int
+        description: Business key.
+        tests:
+          - not_null
+          - unique
+      - name: year
+        data_type: int
+      - name: year_quarter
+        data_type: string
+      - name: year_quarter_number
+        data_type: int
+      - name: quarter
+        data_type: int
+      - name: year_month
+        data_type: string
+      - name: year_month_short
+        data_type: string
+      - name: year_month_number
+        data_type: int
+      - name: month
+        data_type: string
+      - name: month_short
+        data_type: string
+      - name: month_number
+        data_type: int
+      - name: day_of_week
+        data_type: string
+      - name: day_of_week_short
+        data_type: string
+      - name: day_of_week_number
+        data_type: int
+      - name: working_day
+        data_type: int
+      - name: working_day_number
+        data_type: int
+      - name: _ingested_at
+        data_type: timestamp
+        description: Technical column, carried through from bronze.
+        tests:
+          - not_null

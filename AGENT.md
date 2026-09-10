@@ -28,9 +28,9 @@ Architecture and tooling decisions are proposals and will be revisited/improved 
 
 ## 4. Datasets & ingestion strategy
 
-- **Dataset 1:** Contoso 1M (CSV files). The exact source/URL for a reproducible download is still to be determined (see §11).
+- **Dataset 1:** Contoso 1M (CSV files), sourced from [SQLBI Contoso-Data-Generator-V2-Data](https://github.com/sql-bi/Contoso-Data-Generator-V2-Data/releases), release asset `csv-1m.7z` (MIT-licensed, synthetic data — see §11).
 - More datasets/sources will follow (Stage 2: Oracle, Kafka/Protobuf — see §10).
-- **No loading via dbt seeds.** Ingestion runs exclusively through Meltano (`tap-csv` or similar for Stage 1), landing in the lakehouse's landing zone.
+- **No loading via dbt seeds** (dbt seed's row-batched INSERT measured 30+ minutes for 105K rows via Livy — see `specs/001-onboard-contoso-customers/plan.md` Complexity Tracking). Meltano (`tap-csv` or similar) is the long-term ingestion path once a Fabric-compatible target exists (§11); the Stage-1 stopgap is a native Spark bulk load from a CSV uploaded to OneLake Files (`dbt run-operation bootstrap_landing_customer`), landing in the lakehouse's `landing` schema.
 - **Initial load:** a one-time full import of all source files.
 - **Delta simulation:** a script then continuously simulates delta loads (new records + updates to existing business keys) to keep exercising incremental processing and idempotency.
 
@@ -84,6 +84,10 @@ Technical columns consistently start with `_` (e.g. `_ingested_at`, `_loaded_at`
   - `mask_pii_columns` — masks/anonymizes columns from `meta.pii_columns` in non-prod environments. Currently (Stage 1, POC, see §8) there is only one environment (prod), so the macro is still built/tested but is a no-op on `prod` until a non-prod environment exists.
   - `apply_scd1` / `apply_scd2` — generic silver merge logic based on `meta.scd1_columns` / `meta.scd2_columns`.
   - `generate_contract_columns` (optional) — derives a contract YAML skeleton from `meta` (codegen helper, not a runtime macro).
+- **SCD assignment policy** (decided 2026-09-09, applied from `002-onboard-contoso-remaining-entities` onward): which SCD treatment an entity's silver model gets is decided by what kind of entity it is, not case-by-case per column:
+  - **Master data / dimensions** (e.g. `customers`, `products`, `stores`) → **SCD2**, all non-key columns, full versioned history (`_valid_from`/`_valid_to`/`_is_current`). This is what `silver_contoso__customers` already does.
+  - **Facts / transactions** (e.g. `orders`, `orderrows`) → **SCD1**, overwrite-in-place with a `_loaded_at`/`_updated_at` technical-column pair (see `apply_scd1` docstring) — a fact row's own business event doesn't get re-versioned by us; if a source correction arrives, the row is updated, not historized.
+  - **Static reference/calendar data** (e.g. `date`, `currencyexchange`) → **neither.** These are dedup'd on ingest into bronze like anything else, but silver is a plain cleansed view/table with no `apply_scd1`/`apply_scd2` call at all — "historizing" a calendar or a daily FX rate has no meaning, `meta.scd1_columns`/`meta.scd2_columns` are simply omitted (not set to `[]`, which would imply "SCD-managed, currently empty").
 
 ## 7. Naming conventions
 
@@ -94,8 +98,10 @@ Technical columns consistently start with `_` (e.g. `_ingested_at`, `_loaded_at`
   |---|---|
   | Fabric lakehouse | `lh_<domain>` |
   | Fabric warehouse | `wh_<domain>` |
-  | dbt schema per layer | `bronze`, `silver`, `gold`, `serving` (via `generate_schema_name`) |
+  | dbt schema per layer | `landing`, `bronze`, `silver`, `gold`, `serving` (via `generate_schema_name`) |
   | dbt model | `<layer>_<source>__<entity>`, e.g. `bronze_contoso__customers` |
+
+  **Requires a schema-enabled Fabric Lakehouse** (Fabric preview feature, `creationPayload.enableSchemas: true` at lakehouse creation — a default lakehouse is single-schema and silently ignores dbt's `+schema:` config; briefly hit this the hard way on 2026-09-07 before recreating `lh_contoso` schema-enabled on 2026-09-09, see `specs/001-onboard-contoso-customers/plan.md` Complexity Tracking and `dbt/macros/generate_schema_name.sql`). Layer separation is carried by **both** the dbt schema and the `<layer>_<source>__<entity>` model-naming convention — redundant on purpose, so table names stay self-describing even when browsing across schemas.
 
 ## 8. Environment strategy, CI/CD & DevSecOps
 
@@ -142,7 +148,17 @@ Technical columns consistently start with `_` (e.g. `_ingested_at`, `_loaded_at`
 | 6 | `meta` config shape (§6) | **Revised:** no nested `bronze:`/`silver:` keys — since each layer is its own model, a model's `meta` carries only the keys relevant to its own layer directly (`business_key` + `dedup_columns`/`pii_columns` on bronze models; `business_key` + `scd1_columns`/`scd2_columns` on silver models). |
 | 7 | Layer naming prefixes (§7) | **Revised:** deviate from the dbt style guide's `stg_`/`int_` convention; use `bronze_`/`silver_`/`gold_`/`serving_` prefixes matching the medallion layers instead. |
 
-**Still open (independent of starting Stage 1, to be resolved during implementation):**
-- Contoso 1M data source: exact, reproducible download source (URL/license).
+## 12. Decisions (2026-09-09)
+
+| # | Question | Decision |
+|---|---|---|
+| 8 | Livy/Spark session reuse (`profiles.yml`) | **Enabled** (`reuse_session: true`). Each cold Livy session start cost ~2-4 min during `001-onboard-contoso-customers`; reusing the session across separate `dbt` invocations removes that overhead for iterative local development. Session is left running (not deleted) between runs. **Caveat found during `002` (2026-09-10):** separate `dbt` invocations don't always reuse the existing session — they sometimes spawn a new one, so on a Fabric capacity that's already near its limit these accumulate and trigger `TooManyRequestsForCapacity` (HTTP 430). Recovery: cancel lingering `InProgress` Livy sessions via `POST .../items/<lakehouseId>/jobs/instances/<jobInstanceId>/cancel` (the `.../livySessions/<id>/cancel` path 404s), then retry. Revisit disabling `reuse_session` if this keeps recurring. |
+| 8b | SCD2 expire step — pre_hook → post_hook `MERGE` (`dbt/macros/apply_scd2.sql`, 2026-09-10) | The SCD2 "close out the superseded row" step is a **`config(post_hook=...)`** running an unconditional, self-referential **`MERGE INTO`** with **hardcoded string-literal** schema/table/key args — *not* a pre_hook, and nothing `this`/`model.meta`/`is_incremental()`-derived feeds the `config()` call. Reason (full writeup: the macro's docstring "Bug 3" parts 1-3, and `002` research.md Decision 8): dbt re-runs the whole model template in a stub context to extract `config()` calls, so any adapter/manifest-dependent value fed into a `config()` argument silently resolves wrong there; Delta also rejects a self-referential correlated subquery in `UPDATE` but allows the equivalent `MERGE`. `customers` (`001`) was migrated to this design and re-validated with a live delta. |
+| 9 | SCD assignment policy for onboarding remaining Contoso entities (§6) | **Master data/dimensions → SCD2** (already the pattern for `customers`); **facts/transactions → SCD1** (overwrite-in-place); **static reference/calendar data → neither** (plain cleansed table, no `apply_scd1`/`apply_scd2`). See §6. |
+| 10 | Contoso fact structure — `sales.csv` (flat) vs. `orders.csv`+`orderrows.csv` (normalized) | **`orders` + `orderrows`.** Verified by direct inspection: `sales.csv` is `orders` ⋈ `orderrows` already flattened (identical key, identical row count) — onboarding all three would load the same facts twice in different shapes. The normalized pair also better mirrors a real OLTP source. |
+| 11 | Contoso `date.csv`/`currencyexchange.csv` | Treated as **static reference data**, not master data — bronze dedup applies as normal, but silver has no SCD1/SCD2 versioning (see decision 9). |
+
+**Resolved during implementation:**
+- Contoso 1M data source (2026-09-07, via `/speckit-specify` clarification on `specs/001-onboard-contoso-customers/spec.md`): [SQLBI Contoso-Data-Generator-V2-Data](https://github.com/sql-bi/Contoso-Data-Generator-V2-Data/releases), release asset `csv-1m.7z` (MIT-licensed, synthetic data).
 
 From here: autonomous implementation of Stage 1 per this document.

@@ -1,0 +1,57 @@
+version: 2
+
+models:
+  - name: silver_contoso__orderrows
+    description: >
+      SCD1-overwritten order lines. Second fact entity, composite business
+      key (order_key, line_number) — first composite-key `merge` in the
+      project. Exactly one row per (order_key, line_number) at all times.
+    config:
+      contract:
+        enforced: true
+    meta:
+      business_key: [order_key, line_number]
+      scd1_columns: [product_key, quantity, unit_price, net_price, unit_cost]
+      # scd2_columns intentionally omitted — pure-SCD1 entity.
+    columns:
+      - name: order_key
+        data_type: int
+        description: Business key component.
+        constraints:
+          - type: not_null
+      - name: line_number
+        data_type: int
+        description: Business key component.
+        constraints:
+          - type: not_null
+      - name: product_key
+        data_type: int
+        description: FK-shaped reference to product.product_key — not enforced/joined in this change.
+      - name: quantity
+        data_type: int
+      - name: unit_price
+        data_type: double
+      - name: net_price
+        data_type: double
+      - name: unit_cost
+        data_type: double
+      - name: _ingested_at
+        data_type: timestamp
+        description: Technical column — when the underlying bronze snapshot was ingested.
+        constraints:
+          - type: not_null
+      - name: _scd1_hash
+        data_type: string
+        description: Technical column — sha2(256) over business_key + scd1_columns.
+        constraints:
+          - type: not_null
+      - name: _loaded_at
+        data_type: timestamp
+        description: Technical column — when this business key was first seen. Never changes after the initial insert.
+        constraints:
+          - type: not_null
+      - name: _updated_at
+        data_type: timestamp
+        description: Technical column — when a tracked column last actually changed.
+        constraints:
+          - type: not_null

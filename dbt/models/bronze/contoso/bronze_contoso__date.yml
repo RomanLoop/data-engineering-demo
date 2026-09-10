@@ -1,0 +1,72 @@
+version: 2
+
+models:
+  - name: bronze_contoso__date
+    description: >
+      Append-only bronze copy of the Contoso `date` (calendar) source
+      (Stage-1: bootstrap_landing_table stands in for Meltano).
+      Dedup-before-insert on business key + dedup columns:
+      {{ doc("contoso_meta_convention") }}
+      Static reference data — see AGENT.md §6/§12: no SCD1/SCD2 in silver
+      for this entity, only bronze's normal dedup-before-insert applies.
+    config:
+      contract:
+        enforced: true
+    meta:
+      business_key: [DateKey]
+      dedup_columns:
+        [
+          Date, Year, YearQuarter, YearQuarterNumber, Quarter, YearMonth,
+          YearMonthShort, YearMonthNumber, Month, MonthShort, MonthNumber,
+          DayofWeek, DayofWeekShort, DayofWeekNumber, WorkingDay,
+          WorkingDayNumber,
+        ]
+      pii_columns: []
+    columns:
+      - name: Date
+        data_type: date
+      - name: DateKey
+        description: Business key — source date identifier (YYYYMMDD int).
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: Year
+        data_type: int
+      - name: YearQuarter
+        data_type: string
+      - name: YearQuarterNumber
+        data_type: int
+      - name: Quarter
+        data_type: int
+      - name: YearMonth
+        data_type: string
+      - name: YearMonthShort
+        data_type: string
+      - name: YearMonthNumber
+        data_type: int
+      - name: Month
+        data_type: string
+      - name: MonthShort
+        data_type: string
+      - name: MonthNumber
+        data_type: int
+      - name: DayofWeek
+        data_type: string
+      - name: DayofWeekShort
+        data_type: string
+      - name: DayofWeekNumber
+        data_type: int
+      - name: WorkingDay
+        data_type: int
+      - name: WorkingDayNumber
+        data_type: int
+      - name: _ingested_at
+        data_type: timestamp
+        description: Technical column — timestamp this row was appended to bronze.
+        constraints:
+          - type: not_null
+      - name: _dedup_hash
+        data_type: string
+        description: Technical column — sha2(256) over business_key + dedup_columns.
+        constraints:
+          - type: not_null

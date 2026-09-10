@@ -1,0 +1,77 @@
+version: 2
+
+models:
+  - name: silver_contoso__store
+    description: >
+      SCD2-historized stores. Store is classic master data, so every
+      non-key attribute is tracked with full version history — no SCD1
+      columns for this entity. Exactly one row per store_key has
+      `_is_current = true` at any time.
+    config:
+      contract:
+        enforced: true
+    meta:
+      business_key: [store_key]
+      scd1_columns: []
+      scd2_columns:
+        [
+          store_code, geo_area_key, country_code, country_name, state,
+          open_date, close_date, description, square_meters, status,
+        ]
+    columns:
+      - name: store_key
+        data_type: int
+        description: Business key.
+        constraints:
+          - type: not_null
+        tests:
+          - unique:
+              config:
+                where: "_is_current = true"
+      - name: store_code
+        data_type: string
+      - name: geo_area_key
+        data_type: int
+      - name: country_code
+        data_type: string
+      - name: country_name
+        data_type: string
+      - name: state
+        data_type: string
+      - name: open_date
+        data_type: date
+      - name: close_date
+        data_type: date
+        description: Nullable.
+      - name: description
+        data_type: string
+      - name: square_meters
+        data_type: double
+      - name: status
+        data_type: string
+        description: Nullable.
+      - name: _ingested_at
+        data_type: timestamp
+        description: Technical column — when the underlying bronze snapshot was ingested.
+        constraints:
+          - type: not_null
+      - name: _scd_hash
+        data_type: string
+        description: Technical column — sha2(256) over business_key + scd2_columns.
+        constraints:
+          - type: not_null
+      - name: _valid_from
+        data_type: timestamp
+        description: Technical column — when this version became current.
+        constraints:
+          - type: not_null
+      - name: _valid_to
+        data_type: timestamp
+        description: Technical column — never null; sentinel high timestamp while current.
+        constraints:
+          - type: not_null
+      - name: _is_current
+        data_type: boolean
+        description: Technical column — true for exactly one row per store_key at any time.
+        constraints:
+          - type: not_null

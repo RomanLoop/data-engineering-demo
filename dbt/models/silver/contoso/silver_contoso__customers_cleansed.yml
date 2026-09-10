@@ -1,0 +1,87 @@
+version: 2
+
+models:
+  - name: silver_contoso__customers_cleansed
+    description: >
+      Cleansing pass over the full bronze customer history: type casts and
+      snake_case renaming only, per the dbt style guide. No SCD, no joins to
+      other models — enrichment is limited to the same table's columns
+      (constitution Principle IV). Multiple rows per customer_key are
+      expected (bronze's full append-only history passes through
+      unfiltered); historization/current-row selection happens in
+      silver_contoso__customers.
+    config:
+      contract:
+        enforced: true
+    meta:
+      business_key: [customer_key]
+    columns:
+      - name: customer_key
+        data_type: int
+        description: Business key — not unique here (full bronze history passes through); see silver_contoso__customers for the current/versioned view.
+        # Views don't support DDL-level `constraints` (dbt warns and ignores
+        # them) — use a `tests:` entry instead, which runs as a query
+        # regardless of materialization.
+        tests:
+          - not_null
+      - name: geo_area_key
+        data_type: int
+      - name: start_dt
+        data_type: date
+        description: Source attribute (generator-assigned) — not our SCD2 valid-from (research.md Decision 3).
+      - name: end_dt
+        data_type: date
+        description: Source attribute (generator-assigned) — not our SCD2 valid-to (research.md Decision 3).
+      - name: continent
+        data_type: string
+      - name: gender
+        data_type: string
+      - name: title
+        data_type: string
+      - name: given_name
+        data_type: string
+        description: PII.
+      - name: middle_initial
+        data_type: string
+        description: PII.
+      - name: surname
+        data_type: string
+        description: PII.
+      - name: street_address
+        data_type: string
+        description: PII.
+      - name: city
+        data_type: string
+        description: PII.
+      - name: state
+        data_type: string
+      - name: state_full
+        data_type: string
+      - name: zip_code
+        data_type: string
+        description: PII.
+      - name: country
+        data_type: string
+      - name: country_full
+        data_type: string
+      - name: birthday
+        data_type: date
+        description: PII.
+      - name: age
+        data_type: int
+      - name: occupation
+        data_type: string
+      - name: company
+        data_type: string
+        description: PII.
+      - name: vehicle
+        data_type: string
+      - name: latitude
+        data_type: double
+      - name: longitude
+        data_type: double
+      - name: _ingested_at
+        data_type: timestamp
+        description: Technical column, carried through from bronze.
+        tests:
+          - not_null

@@ -1,0 +1,42 @@
+[sqlfluff]
+templater = dbt
+dialect = sparksql
+sql_file_exts = .sql
+# Identifier casing is intentionally mixed across layers (bronze keeps
+# source PascalCase column names for traceability; silver onward renames to
+# snake_case — AGENT.md §6/§7), so no single capitalisation policy fits.
+# capitalisation.identifiers (CP02) is disabled repo-wide rather than fought
+# per directory. AL09 (ambiguous self-alias) is disabled for the same
+# reason: silver-cleansed's `GivenName as given_name` is a deliberate
+# case-only rename, not an accidental no-op alias. references.keywords
+# (RF04) and references.quoting (RF06) directly contradict each other for
+# borderline-reserved words like `state` (one wants it unquoted, the other
+# wants it quoted) — we quote defensively everywhere (always valid in Spark
+# SQL, whether or not a given word turns out to be reserved) and disable
+# both rules rather than fight a false conflict.
+# layout.indent (LT02) is additionally excluded (2026-09-10): its
+# indent-inference doesn't handle Jinja control-flow wrapping a clause
+# (e.g. `{% if is_incremental() %}\nwhere {{ macro(...) }}\n{% endif %}`,
+# used identically across all bronze/silver models) — it flags the
+# same, already live-validated pattern as a false positive, and
+# sqlfluff's own `fix` has a known bug on more complex cases of this
+# (NotImplementedError: "Found literal whitespace with stashed idx",
+# hit live while investigating this exclusion). Not worth chasing
+# further on generated/templated SQL; same reasoning as the RF04/RF06
+# exclusion below.
+exclude_rules = capitalisation.identifiers, aliasing.self_alias.column, references.keywords, references.quoting, layout.indent
+# 100, not the default 80: several macro-call lines (dedup_before_insert,
+# expire_scd2_current_rows, generate_hash) read better inline than
+# wrapped, and wrapping them risks the same class of templater fragility
+# noted above for marginal readability gain.
+max_line_length = 100
+
+[sqlfluff:templater:dbt]
+project_dir = dbt
+profiles_dir = dbt
+
+[sqlfluff:indentation]
+tab_space_size = 4
+
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = lower

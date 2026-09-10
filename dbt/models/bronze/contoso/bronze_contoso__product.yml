@@ -1,0 +1,69 @@
+version: 2
+
+models:
+  - name: bronze_contoso__product
+    description: >
+      Append-only bronze copy of the Contoso `product` source (Stage-1: a
+      native Spark bulk load, dbt run-operation bootstrap_landing_table,
+      stands in for the Meltano-populated landing zone). Dedup-before-insert
+      on business key + dedup columns, per the shared `meta` convention:
+      {{ doc("contoso_meta_convention") }}
+      One row per (ProductKey, full attribute snapshot) ever seen; multiple
+      rows per ProductKey accumulate over time as attributes change —
+      silver derives the current/history view (SCD2).
+    config:
+      contract:
+        enforced: true
+    meta:
+      business_key: [ProductKey]
+      dedup_columns:
+        [
+          ProductCode, ProductName, Manufacturer, Brand, Color, WeightUnit,
+          Weight, Cost, Price, CategoryKey, CategoryName, SubCategoryKey,
+          SubCategoryName,
+        ]
+      pii_columns: []
+    columns:
+      - name: ProductKey
+        description: Business key — source product identifier. Not unique in bronze (append-only history); see silver for the current/unique view.
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: ProductCode
+        data_type: string
+        description: Source product code.
+      - name: ProductName
+        data_type: string
+      - name: Manufacturer
+        data_type: string
+      - name: Brand
+        data_type: string
+      - name: Color
+        data_type: string
+      - name: WeightUnit
+        data_type: string
+      - name: Weight
+        data_type: double
+      - name: Cost
+        data_type: double
+      - name: Price
+        data_type: double
+      - name: CategoryKey
+        data_type: int
+        description: Source foreign key to product category (not modeled as a relationship — no separate category entity onboarded).
+      - name: CategoryName
+        data_type: string
+      - name: SubCategoryKey
+        data_type: int
+      - name: SubCategoryName
+        data_type: string
+      - name: _ingested_at
+        data_type: timestamp
+        description: Technical column — timestamp this row was appended to bronze.
+        constraints:
+          - type: not_null
+      - name: _dedup_hash
+        data_type: string
+        description: Technical column — sha2(256) over business_key + dedup_columns (see generate_hash macro). Compared instead of the raw columns for dedup-before-insert.
+        constraints:
+          - type: not_null

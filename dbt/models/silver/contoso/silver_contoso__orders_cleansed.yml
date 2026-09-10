@@ -1,0 +1,37 @@
+version: 2
+
+models:
+  - name: silver_contoso__orders_cleansed
+    description: >
+      Cleansing pass over the full bronze orders history: type casts and
+      snake_case renaming only. No SCD, no joins to other models. Multiple
+      rows per order_key are expected (bronze's full append-only history
+      passes through unfiltered); SCD1 overwrite happens in
+      silver_contoso__orders.
+    config:
+      contract:
+        enforced: true
+    meta:
+      business_key: [order_key]
+    columns:
+      - name: order_key
+        data_type: int
+        description: Business key — not unique here; see silver_contoso__orders for the current/overwritten view.
+        tests:
+          - not_null
+      - name: customer_key
+        data_type: int
+      - name: store_key
+        data_type: int
+      - name: order_date
+        data_type: date
+      - name: delivery_date
+        data_type: date
+        description: Nullable.
+      - name: currency_code
+        data_type: string
+      - name: _ingested_at
+        data_type: timestamp
+        description: Technical column, carried through from bronze.
+        tests:
+          - not_null

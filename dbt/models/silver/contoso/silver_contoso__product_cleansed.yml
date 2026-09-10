@@ -1,0 +1,56 @@
+version: 2
+
+models:
+  - name: silver_contoso__product_cleansed
+    description: >
+      Cleansing pass over the full bronze product history: type casts and
+      snake_case renaming only, per the dbt style guide. No SCD, no joins to
+      other models — enrichment is limited to the same table's columns
+      (constitution Principle IV). Multiple rows per product_key are
+      expected (bronze's full append-only history passes through
+      unfiltered); historization/current-row selection happens in
+      silver_contoso__product.
+    config:
+      contract:
+        enforced: true
+    meta:
+      business_key: [product_key]
+    columns:
+      - name: product_key
+        data_type: int
+        description: Business key — not unique here (full bronze history passes through); see silver_contoso__product for the current/versioned view.
+        # Views don't support DDL-level `constraints` (dbt warns and ignores
+        # them) — use a `tests:` entry instead.
+        tests:
+          - not_null
+      - name: product_code
+        data_type: string
+      - name: product_name
+        data_type: string
+      - name: manufacturer
+        data_type: string
+      - name: brand
+        data_type: string
+      - name: color
+        data_type: string
+      - name: weight_unit
+        data_type: string
+      - name: weight
+        data_type: double
+      - name: cost
+        data_type: double
+      - name: price
+        data_type: double
+      - name: category_key
+        data_type: int
+      - name: category_name
+        data_type: string
+      - name: sub_category_key
+        data_type: int
+      - name: sub_category_name
+        data_type: string
+      - name: _ingested_at
+        data_type: timestamp
+        description: Technical column, carried through from bronze.
+        tests:
+          - not_null

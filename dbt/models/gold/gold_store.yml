@@ -1,0 +1,40 @@
+version: 2
+
+models:
+  - name: gold_store
+    description: >
+      Current-version stores, business logic layer. Relational, no
+      surrogate key. No cross-entity joins yet.
+    config:
+      contract:
+        enforced: true
+    meta:
+      business_key: [store_key]
+    columns:
+      - name: store_key
+        data_type: int
+        description: Business key.
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+      - name: store_code
+        data_type: string
+      - name: geo_area_key
+        data_type: int
+      - name: country_code
+        data_type: string
+      - name: country_name
+        data_type: string
+      - name: state
+        data_type: string
+      - name: open_date
+        data_type: date
+      - name: close_date
+        data_type: date
+      - name: description
+        data_type: string
+      - name: square_meters
+        data_type: double
+      - name: status
+        data_type: string

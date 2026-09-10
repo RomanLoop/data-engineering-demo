@@ -19,6 +19,12 @@ logs/
 .meltano/
 output/
 
+# --- Stage-1 landing source CSVs (reproducible download, see
+#     data/contoso/README.md) — kept out of git: orderrows.csv is ~86 MB,
+#     orders.csv ~46 MB, and all six are byte-identical to a public
+#     release asset. ---
+data/contoso/*.csv
+
 # --- Dagster ---
 .dagster_home/
 storage/

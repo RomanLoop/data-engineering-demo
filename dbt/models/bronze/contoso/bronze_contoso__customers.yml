@@ -1,0 +1,113 @@
+version: 2
+
+models:
+  - name: bronze_contoso__customers
+    description: >
+      Append-only bronze copy of the Contoso `customer` source (Stage-1: a
+      native Spark bulk load, dbt run-operation bootstrap_landing_customer,
+      stands in for the Meltano-populated landing zone — see plan.md
+      Complexity Tracking). Dedup-before-insert on business key +
+      dedup columns, per the shared `meta` convention:
+      {{ doc("contoso_meta_convention") }}
+      One row per (CustomerKey, full attribute snapshot) ever seen; multiple
+      rows per CustomerKey accumulate over time as attributes change —
+      silver derives the current/history view.
+    config:
+      contract:
+        enforced: true
+    meta:
+      business_key: [CustomerKey]
+      dedup_columns:
+        [
+          GeoAreaKey, StartDT, EndDT, Continent, Gender, Title, GivenName,
+          MiddleInitial, Surname, StreetAddress, City, State, StateFull,
+          ZipCode, Country, CountryFull, Birthday, Age, Occupation, Company,
+          Vehicle, Latitude, Longitude,
+        ]
+      pii_columns:
+        [GivenName, MiddleInitial, Surname, StreetAddress, City, ZipCode, Birthday, Company]
+    columns:
+      - name: CustomerKey
+        description: Business key — source customer identifier. Not unique in bronze (append-only history); see silver for the current/unique view.
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: GeoAreaKey
+        data_type: int
+        description: Source foreign key to a geography dimension (not modeled as a relationship yet — no geography entity onboarded).
+      - name: StartDT
+        data_type: date
+        description: Source attribute (generator-assigned). Not used as our own SCD2 valid-from — see research.md Decision 3.
+      - name: EndDT
+        data_type: date
+        description: Source attribute (generator-assigned). Not used as our own SCD2 valid-to — see research.md Decision 3.
+      - name: Continent
+        data_type: string
+        description: Customer's continent.
+      - name: Gender
+        data_type: string
+        description: Customer's gender, as provided by the source.
+      - name: Title
+        data_type: string
+        description: Customer's honorific title.
+      - name: GivenName
+        data_type: string
+        description: "PII. Customer's given name."
+      - name: MiddleInitial
+        data_type: string
+        description: "PII. Customer's middle initial."
+      - name: Surname
+        data_type: string
+        description: "PII. Customer's surname."
+      - name: StreetAddress
+        data_type: string
+        description: "PII. Customer's street address."
+      - name: City
+        data_type: string
+        description: "PII. Customer's city."
+      - name: State
+        data_type: string
+        description: Customer's state/province code.
+      - name: StateFull
+        data_type: string
+        description: Customer's state/province full name.
+      - name: ZipCode
+        data_type: string
+        description: "PII. Customer's postal code (kept as string — not all postal codes are purely numeric)."
+      - name: Country
+        data_type: string
+        description: Customer's country code.
+      - name: CountryFull
+        data_type: string
+        description: Customer's country full name.
+      - name: Birthday
+        data_type: date
+        description: "PII. Customer's date of birth."
+      - name: Age
+        data_type: int
+        description: Customer's age (source-computed, not derived from Birthday here).
+      - name: Occupation
+        data_type: string
+        description: Customer's occupation.
+      - name: Company
+        data_type: string
+        description: "PII. Customer's employer."
+      - name: Vehicle
+        data_type: string
+        description: Customer's vehicle (make/model/year), source-generated.
+      - name: Latitude
+        data_type: double
+        description: Customer's approximate latitude.
+      - name: Longitude
+        data_type: double
+        description: Customer's approximate longitude.
+      - name: _ingested_at
+        data_type: timestamp
+        description: Technical column — timestamp this row was appended to bronze.
+        constraints:
+          - type: not_null
+      - name: _dedup_hash
+        data_type: string
+        description: Technical column — sha2(256) over business_key + dedup_columns (see generate_hash macro). Compared instead of the raw columns for dedup-before-insert.
+        constraints:
+          - type: not_null

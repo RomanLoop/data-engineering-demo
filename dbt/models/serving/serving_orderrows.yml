@@ -1,0 +1,31 @@
+version: 2
+
+models:
+  - name: serving_orderrows
+    description: Consumable view over gold_orderrows. No row-level security for this change.
+    config:
+      contract:
+        enforced: true
+    meta:
+      business_key: [order_key, line_number]
+    columns:
+      - name: order_key
+        data_type: int
+        description: Business key component.
+        tests:
+          - not_null
+      - name: line_number
+        data_type: int
+        description: Business key component.
+        tests:
+          - not_null
+      - name: product_key
+        data_type: int
+      - name: quantity
+        data_type: int
+      - name: unit_price
+        data_type: double
+      - name: net_price
+        data_type: double
+      - name: unit_cost
+        data_type: double

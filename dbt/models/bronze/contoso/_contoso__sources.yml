@@ -1,0 +1,34 @@
+version: 2
+
+sources:
+  - name: contoso_landing
+    description: >
+      Stage-1 landing tables, bulk-loaded from CSV via
+      dbt/macros/bootstrap_landing_customer.sql (native Spark read+write —
+      replaces the earlier dbt-seed stopgap, which was ~30+ minutes for
+      104,990 rows; the bulk load does it in under a minute). Run the
+      bootstrap operation manually before building bronze:
+      `dbt run-operation bootstrap_landing_customer`. This is a Stage-1
+      exception (AGENT.md §11, plan.md Complexity Tracking) — Meltano
+      `tap-csv` is the long-term ingestion path once a Fabric-compatible
+      target exists.
+    schema: landing
+    tables:
+      - name: landing_customer
+        description: Bulk-loaded Contoso customer CSV, overwritten (CREATE OR REPLACE) on every bootstrap run — a pure landing zone per AGENT.md §5.
+      - name: landing_product
+        description: >
+          Bulk-loaded Contoso product CSV via the generalized
+          `bootstrap_landing_table` macro (specs/002-onboard-contoso-remaining-entities/research.md
+          Decision 5) — `dbt run-operation bootstrap_landing_table --args
+          '{entity: product, csv_path: Files/contoso/product.csv, ...}'`.
+      - name: landing_store
+        description: Bulk-loaded Contoso store CSV via `bootstrap_landing_table`.
+      - name: landing_date
+        description: Bulk-loaded Contoso date CSV via `bootstrap_landing_table`.
+      - name: landing_currencyexchange
+        description: Bulk-loaded Contoso currencyexchange CSV via `bootstrap_landing_table`.
+      - name: landing_orders
+        description: Bulk-loaded Contoso orders CSV via `bootstrap_landing_table`.
+      - name: landing_orderrows
+        description: Bulk-loaded Contoso orderrows CSV via `bootstrap_landing_table`.

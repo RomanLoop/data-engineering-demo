@@ -1,0 +1,75 @@
+version: 2
+
+models:
+  - name: serving_customers
+    description: >
+      Consumable view over gold_customers for BI/semantic-layer consumption.
+      No row-level security for this change (spec.md Assumptions).
+    config:
+      contract:
+        enforced: true
+    meta:
+      business_key: [customer_key]
+    columns:
+      - name: customer_key
+        data_type: int
+        description: Business key.
+        # Views don't support DDL-level `constraints` (dbt warns and ignores
+        # them) — use `tests:` instead.
+        tests:
+          - not_null
+          - unique
+      - name: geo_area_key
+        data_type: int
+      - name: start_dt
+        data_type: date
+      - name: end_dt
+        data_type: date
+      - name: continent
+        data_type: string
+      - name: gender
+        data_type: string
+      - name: title
+        data_type: string
+      - name: given_name
+        data_type: string
+        description: PII.
+      - name: middle_initial
+        data_type: string
+        description: PII.
+      - name: surname
+        data_type: string
+        description: PII.
+      - name: street_address
+        data_type: string
+        description: PII.
+      - name: city
+        data_type: string
+        description: PII.
+      - name: state
+        data_type: string
+      - name: state_full
+        data_type: string
+      - name: zip_code
+        data_type: string
+        description: PII.
+      - name: country
+        data_type: string
+      - name: country_full
+        data_type: string
+      - name: birthday
+        data_type: date
+        description: PII.
+      - name: age
+        data_type: int
+      - name: occupation
+        data_type: string
+      - name: company
+        data_type: string
+        description: PII.
+      - name: vehicle
+        data_type: string
+      - name: latitude
+        data_type: double
+      - name: longitude
+        data_type: double

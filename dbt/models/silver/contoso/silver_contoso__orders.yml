@@ -1,0 +1,58 @@
+version: 2
+
+models:
+  - name: silver_contoso__orders
+    description: >
+      SCD1-overwritten orders. Orders is a fact/transaction entity
+      (AGENT.md §6/§12), so every non-key attribute is overwritten in place
+      on change — no version history, unlike the SCD2 dimensions. Exactly
+      one row per order_key at all times (`merge` on `order_key`). See
+      dbt/macros/apply_scd1.sql for the historization design.
+    config:
+      contract:
+        enforced: true
+    meta:
+      business_key: [order_key]
+      scd1_columns: [customer_key, store_key, order_date, delivery_date, currency_code]
+      # scd2_columns intentionally omitted — pure-SCD1 entity.
+    columns:
+      - name: order_key
+        data_type: int
+        description: Business key.
+        constraints:
+          - type: not_null
+        tests:
+          - unique
+      - name: customer_key
+        data_type: int
+        description: FK-shaped reference to customers.customer_key — not enforced/joined in this change.
+      - name: store_key
+        data_type: int
+        description: FK-shaped reference to store.store_key — not enforced/joined in this change.
+      - name: order_date
+        data_type: date
+      - name: delivery_date
+        data_type: date
+        description: Nullable.
+      - name: currency_code
+        data_type: string
+      - name: _ingested_at
+        data_type: timestamp
+        description: Technical column — when the underlying bronze snapshot was ingested.
+        constraints:
+          - type: not_null
+      - name: _scd1_hash
+        data_type: string
+        description: Technical column — sha2(256) over business_key + scd1_columns.
+        constraints:
+          - type: not_null
+      - name: _loaded_at
+        data_type: timestamp
+        description: Technical column — when this business key was first seen. Never changes after the initial insert.
+        constraints:
+          - type: not_null
+      - name: _updated_at
+        data_type: timestamp
+        description: Technical column — when a tracked column last actually changed. Only bumps when _scd1_hash differs from the previously stored value (see apply_scd1_updated_at_expr) — a rerun with no real change leaves this untouched.
+        constraints:
+          - type: not_null

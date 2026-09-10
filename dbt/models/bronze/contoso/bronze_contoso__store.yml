@@ -1,0 +1,62 @@
+version: 2
+
+models:
+  - name: bronze_contoso__store
+    description: >
+      Append-only bronze copy of the Contoso `store` source (Stage-1: a
+      native Spark bulk load, dbt run-operation bootstrap_landing_table,
+      stands in for the Meltano-populated landing zone). Dedup-before-insert
+      on business key + dedup columns, per the shared `meta` convention:
+      {{ doc("contoso_meta_convention") }}
+      One row per (StoreKey, full attribute snapshot) ever seen — silver
+      derives the current/history view (SCD2).
+    config:
+      contract:
+        enforced: true
+    meta:
+      business_key: [StoreKey]
+      dedup_columns:
+        [
+          StoreCode, GeoAreaKey, CountryCode, CountryName, State, OpenDate,
+          CloseDate, Description, SquareMeters, Status,
+        ]
+      pii_columns: []
+    columns:
+      - name: StoreKey
+        description: Business key — source store identifier. Not unique in bronze (append-only history); see silver for the current/unique view.
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: StoreCode
+        data_type: string
+      - name: GeoAreaKey
+        data_type: int
+        description: Source foreign key to a geography dimension (not modeled as a relationship yet).
+      - name: CountryCode
+        data_type: string
+      - name: CountryName
+        data_type: string
+      - name: State
+        data_type: string
+      - name: OpenDate
+        data_type: date
+      - name: CloseDate
+        data_type: date
+        description: Nullable — still-open stores have no close date.
+      - name: Description
+        data_type: string
+      - name: SquareMeters
+        data_type: double
+      - name: Status
+        data_type: string
+        description: Nullable in the source (blank for a normally-operating store).
+      - name: _ingested_at
+        data_type: timestamp
+        description: Technical column — timestamp this row was appended to bronze.
+        constraints:
+          - type: not_null
+      - name: _dedup_hash
+        data_type: string
+        description: Technical column — sha2(256) over business_key + dedup_columns.
+        constraints:
+          - type: not_null

@@ -25,7 +25,10 @@ data_engineering_demo:
       # credentials.py's lakehouse_schemas_enabled check). 'dbo' is the
       # Fabric-assigned default schema on a schema-enabled lakehouse.
       schema: dbo
-      threads: 4
+      # P10: the bronze layer is 7 independent models — a few more threads
+      # lets more of it run concurrently. Kept modest (HC mode leases a
+      # Livy REPL per concurrent node).
+      threads: 6
       # Keeps the Livy/Spark session alive and reused across separate `dbt`
       # invocations instead of cold-starting a new one every time (~2-4 min
       # observed per cold start during 001-onboard-contoso-customers). The
@@ -38,3 +41,21 @@ data_engineering_demo:
         # (not shown in the public docs page as of this writing — found by
         # running `dbt parse` locally against this profile).
         name: "data_engineering_demo"
+        # Session-level Spark tuning (perf-analysis P4/P5/P6, 2026-09-10).
+        # Applied as the Livy HC session's `conf`. All runtime-settable.
+        conf:
+          # P4: raise the broadcast-join cutoff so the dedup / SCD2
+          # "not exists" anti-joins broadcast the (small) target hash set
+          # instead of a full sort-merge shuffle. AQE decides from runtime
+          # partition sizes, so no ANALYZE is needed. ~64 MB covers every
+          # entity's hash column except orders/orderrows — those stay
+          # sort-merge until the bigint-hash change (deferred).
+          spark.sql.adaptive.enabled: "true"
+          spark.sql.adaptive.coalescePartitions.enabled: "true"
+          spark.sql.adaptive.autoBroadcastJoinThreshold: "67108864"
+          spark.sql.autoBroadcastJoinThreshold: "67108864"
+          # P5: write right-sized files up front — removes the need for a
+          # post-hoc OPTIMIZE and keeps the small, frequently-rebuilt
+          # tables (store, date, product) from fragmenting.
+          spark.microsoft.delta.optimizeWrite.enabled: "true"
+          spark.microsoft.delta.autoCompact.enabled: "true"

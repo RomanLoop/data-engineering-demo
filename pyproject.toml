@@ -1,0 +1,48 @@
+# poethepoet task runner — lets `dbt`, `sqlfluff` and the helper scripts run
+# from PowerShell (or any shell) with the repo-root `.env` auto-loaded, so
+# `dbt/profiles.yml`'s `env_var('FABRIC_*')` lookups resolve without having
+# to `source .env` / dot-source it first.
+#
+# One-time setup:
+#   C:\dbtenv\Scripts\pip.exe install poethepoet
+#
+# Usage (PowerShell):
+#   poe dbt debug
+#   poe dbt build --select bronze_contoso__product+
+#   poe dbt run-operation bootstrap_landing_table --args '{entity: product, ...}'
+#   poe lint
+#   poe upload --local data/contoso/product.csv --remote Files/contoso/product.csv
+#
+# `[tool.poe.executor]` points at the short-path venv this project uses on
+# Windows (the `C:\dbtenv` MAX_PATH workaround — see AGENT.md). If your venv
+# lives elsewhere, change `location`; or delete the `[tool.poe.executor]`
+# block entirely and activate your venv before calling `poe`.
+
+[tool.poe]
+envfile = ".env"
+
+[tool.poe.executor]
+type = "virtualenv"
+location = "C:/dbtenv"
+
+[tool.poe.tasks.dbt]
+cmd = "dbt"
+cwd = "dbt"
+env = { DBT_PROFILES_DIR = "." }
+help = "Run dbt from the dbt/ project dir with .env + profiles loaded"
+
+[tool.poe.tasks.lint]
+cmd = "sqlfluff lint dbt/models dbt/tests --dialect sparksql"
+help = "sqlfluff lint the models and tests"
+
+[tool.poe.tasks.fix]
+cmd = "sqlfluff fix dbt/models dbt/tests --dialect sparksql"
+help = "sqlfluff fix (review the diff — the templater can mangle heavy Jinja)"
+
+[tool.poe.tasks.upload]
+cmd = "python scripts/upload_to_onelake.py"
+help = "Upload a local file to the lakehouse OneLake Files area (flags: --local --remote)"
+
+[tool.poe.tasks.simulate]
+cmd = "python"
+help = "Run a delta-load simulator, e.g. poe simulate scripts/simulate_delta_load/contoso_product.py --new 20 --updated 10"

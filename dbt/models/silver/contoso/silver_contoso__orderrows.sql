@@ -38,7 +38,7 @@ _new_or_changed as (
 
 ),
 {% else %}
-_new_or_changed as ( select * from _cleansed ),
+_new_or_changed as (select * from _cleansed),
 {% endif %}
 
 _latest as (

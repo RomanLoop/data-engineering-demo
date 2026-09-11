@@ -15,7 +15,13 @@
 # `git config core.longpaths true` is already set for this repo.
 
 # --- transformation ---
-dbt-core==1.12.3
+# dbt-core pinned to 1.11.x (not the latest 1.12.x) because dagster-dbt==0.29.21 (the latest
+# release as of 2026-09-11) caps at dbt-core<1.12 — every published dagster-dbt version does,
+# checked back through 0.27.x. dbt-fabricspark only needs dbt-core>=1.8.0, so this is a real
+# downgrade made to satisfy the Dagster integration (specs/003-dagster-orchestration), not an
+# adapter requirement. Re-validated (2026-09-11): dbt parse/compile/build + the full 001/002 test
+# suite pass unchanged at 1.11.15 — see specs/003-dagster-orchestration/research.md Decision 10.
+dbt-core==1.11.15
 dbt-fabricspark==1.13.4
 
 # --- linting ---
@@ -29,3 +35,13 @@ poethepoet==0.48.0
 azure-identity==1.25.3
 requests==2.34.2
 py7zr==1.1.3
+
+# --- orchestration (Dagster, specs/003-dagster-orchestration) ---
+# create-dagster/dagster-dg-cli are only needed for scaffolding/dg CLI use; kept pinned for
+# reproducibility. Installed via pip into this .venv — NOT uv (research.md Decision 1: this repo
+# standardized on a single pip-managed .venv, declining the scaffold tool's uv default).
+dagster==1.13.21
+dagster-webserver==1.13.21
+dagster-dbt==0.29.21
+dagster-dg-cli==1.13.21
+create-dagster==1.13.21

@@ -62,13 +62,21 @@ specs/003-dagster-orchestration/
 orchestration/                          # NEW — create-dagster/dg scaffold
 ├── pyproject.toml                      # dg/Components project metadata (NOT the poe pyproject)
 ├── src/orchestration/
-│   ├── definitions.py                  # top-level Definitions, loads defs/
-│   └── defs/
-│       ├── dbt_ingest/
-│       │   └── defs.yaml               # DbtProjectComponent, points at ../../dbt
-│       ├── landing/
-│       │   └── landing_assets.py       # one @dg.asset per landing_<entity>
-│       └── schedules.py                # delta_load_job + delta_load_schedule (stopped by default)
+│   ├── env.py                          # loads repo-root .env at import time (must run first)
+│   ├── resources.py                    # DbtProject/DbtCliResource, pointed at ../../dbt in place
+│   ├── dbt_assets.py                   # @dbt_assets — one asset per dbt model (see research.md
+│   │                                    # Decision 8: classic API, not DbtProjectComponent —
+│   │                                    # the Components version hit a reproducible Windows
+│   │                                    # PermissionError rebuilding its state cache)
+│   ├── landing_assets.py               # one @asset per landing_<entity> (Capability 2)
+│   ├── schedules.py                    # delta_load_job + delta_load_schedule, stopped by default
+│   │                                    # (Capability 3)
+│   ├── definitions.py                  # hand-assembled Definitions(assets=[...], jobs=[...],
+│   │                                    # schedules=[...], resources={...}) — no defs/
+│   │                                    # auto-discovery anywhere in this project (Decision 8
+│   │                                    # made the dbt piece classic, so everything else follows
+│   │                                    # the same explicit-import pattern for consistency)
+│   └── defs/                           # empty — kept for possible future Component use
 └── tests/                              # scaffold default; smoke tests for the code location
 
 dbt/models/*/**/*.yml                   # ADDITIVE ONLY — meta.dagster.asset_key on

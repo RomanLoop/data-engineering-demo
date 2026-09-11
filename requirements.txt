@@ -45,3 +45,9 @@ dagster-webserver==1.13.21
 dagster-dbt==0.29.21
 dagster-dg-cli==1.13.21
 create-dagster==1.13.21
+python-dotenv==1.2.3
+
+# `orchestration/` is its own dg/Components-managed project (its own pyproject.toml) but shares
+# this single venv (specs/003-dagster-orchestration research.md Decision 1/2) — after installing
+# the above, also run once:
+#   .venv\Scripts\pip install -e ./orchestration --no-deps

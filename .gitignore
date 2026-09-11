@@ -28,6 +28,7 @@ data/contoso/*.csv
 # --- Dagster ---
 .dagster_home/
 storage/
+orchestration/.dg/
 
 # --- Python ---
 __pycache__/

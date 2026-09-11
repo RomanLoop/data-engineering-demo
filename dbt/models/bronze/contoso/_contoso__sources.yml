@@ -16,19 +16,40 @@ sources:
     tables:
       - name: landing_customer
         description: Bulk-loaded Contoso customer CSV, overwritten (CREATE OR REPLACE) on every bootstrap run — a pure landing zone per AGENT.md §5.
+        meta:
+          dagster:
+            asset_key: ["landing_customer"]
       - name: landing_product
         description: >
           Bulk-loaded Contoso product CSV via the generalized
           `bootstrap_landing_table` macro (specs/002-onboard-contoso-remaining-entities/research.md
           Decision 5) — `dbt run-operation bootstrap_landing_table --args
           '{entity: product, csv_path: Files/contoso/product.csv, ...}'`.
+        meta:
+          dagster:
+            asset_key: ["landing_product"]
       - name: landing_store
         description: Bulk-loaded Contoso store CSV via `bootstrap_landing_table`.
+        meta:
+          dagster:
+            asset_key: ["landing_store"]
       - name: landing_date
         description: Bulk-loaded Contoso date CSV via `bootstrap_landing_table`.
+        meta:
+          dagster:
+            asset_key: ["landing_date"]
       - name: landing_currencyexchange
         description: Bulk-loaded Contoso currencyexchange CSV via `bootstrap_landing_table`.
+        meta:
+          dagster:
+            asset_key: ["landing_currencyexchange"]
       - name: landing_orders
         description: Bulk-loaded Contoso orders CSV via `bootstrap_landing_table`.
+        meta:
+          dagster:
+            asset_key: ["landing_orders"]
       - name: landing_orderrows
         description: Bulk-loaded Contoso orderrows CSV via `bootstrap_landing_table`.
+        meta:
+          dagster:
+            asset_key: ["landing_orderrows"]

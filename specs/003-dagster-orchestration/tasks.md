@@ -24,14 +24,14 @@ layer. `[C1]`/`[C2]`/`[C3]` labels map to spec.md's Capability 1/2/3.
 
 **Purpose**: get a `dg`-scaffolded Dagster project into the repo, dependencies installed, runnable via `poe` — before any asset is written.
 
-- [ ] T001 Determine the latest mutually-compatible `dagster` / `dagster-dbt` / `dagster-webserver` versions that support the installed `dbt-core==1.12.3` (research.md Decision 9); record the chosen versions in this file's Notes.
-- [ ] T002 Add the pinned versions to `requirements.txt` (new `# --- orchestration (Dagster) ---` section, matching the file's existing style) and install into the project `.venv` via `pip install -r requirements.txt` — no global install (AGENT.md §2).
-- [ ] T003 Regenerate `requirements.lock.txt` (`pip freeze`) to capture the new dependency tree.
-- [ ] T004 Scaffold `orchestration/` with `create-dagster project orchestration`, declining/skipping the `--uv-sync` step — this repo uses pip + one `.venv`, not `uv` (research.md Decision 1). Confirm the generated layout: `orchestration/pyproject.toml`, `orchestration/src/orchestration/{definitions.py, defs/}`.
-- [ ] T005 [P] Add a `dagster` task to the **root** `pyproject.toml` `[tool.poe.tasks]` (`cmd = "dagster"`, `cwd = "orchestration"`, `env` loaded from the repo-root `.env` via the existing `envfile = ".env"` setting) — mirrors the existing `poe dbt` task (research.md Decision 2: two separate `pyproject.toml` files, not merged).
-- [ ] T006 [P] Add Dagster's local artifacts to `.gitignore` (e.g. `orchestration/.dg/`, `**/__pycache__/`, any `$DAGSTER_HOME`-style local storage the scaffold creates) so `dagster dev` state never gets committed.
+- [x] T001 Determine the latest mutually-compatible `dagster` / `dagster-dbt` / `dagster-webserver` versions (research.md Decision 9). **Found a hard blocker**: every published `dagster-dbt` caps `dbt-core<1.12`; this project ran `dbt-core==1.12.3`. Resolved per research.md Decision 10 (user chose to downgrade `dbt-core` to `1.11.15`). Final pins: `dagster==1.13.21`, `dagster-webserver==1.13.21`, `dagster-dbt==0.29.21`, `dagster-dg-cli==1.13.21`, `create-dagster==1.13.21`.
+- [x] T002 Added the pinned versions to `requirements.txt` and installed into `.venv` via `pip install -r requirements.txt`.
+- [x] T003 Regenerated `requirements.lock.txt`.
+- [x] T004 Scaffolded `orchestration/` with `create-dagster project orchestration` (`PYTHONUTF8=1` needed to work around a Rich/legacy-Windows-console crash; declined the `uv sync` prompt). Layout confirmed: `orchestration/pyproject.toml` (`[tool.dg]`), `src/orchestration/{__init__.py, definitions.py, defs/__init__.py}`, `tests/__init__.py`.
+- [x] T005 [P] Added `[tool.poe.tasks.dagster]` to the root `pyproject.toml` (`cmd = "dagster"`, `cwd = "orchestration"`) — `.env` already loads repo-wide via the existing `envfile = ".env"`.
+- [x] T006 [P] Added `orchestration/.dg/` to the root `.gitignore`'s existing `# --- Dagster ---` section (which already had `.dagster_home/`/`storage/` from earlier setup); `orchestration/.gitignore` (scaffold-generated) already covers `__pycache__/`/`.env`/`.venv` inside `orchestration/`.
 
-**Checkpoint**: `poe dagster --version` (or equivalent) runs from repo root; `orchestration/` exists with the scaffolded layout; nothing installed outside `.venv`.
+**Checkpoint**: ✅ `orchestration/` scaffolded; nothing installed outside `.venv`.
 
 ---
 
@@ -41,10 +41,10 @@ layer. `[C1]`/`[C2]`/`[C3]` labels map to spec.md's Capability 1/2/3.
 
 **⚠️ CRITICAL**: No capability work can begin until this phase is complete.
 
-- [ ] T007 Define the shared dbt resource in `orchestration/src/orchestration/defs/resources.py` (or component config) with `project_dir`/`profiles_dir` pointed explicitly at the existing `dbt/` (relative path from `orchestration/`, e.g. `{{ context.project_root }}/../dbt`), `target: dev` — do not rely on process cwd (research.md Decision 4).
-- [ ] T008 Add a `.env` load at `orchestration/src/orchestration/definitions.py` import time (e.g. `python-dotenv` pointed at the repo-root `.env`) as a safety net for when `dagster dev` is launched outside `poe` — no new secrets file, same `.env` the rest of the repo already uses.
-- [ ] T009 Locate every `contoso_landing` source-table declaration (the `sources.yml` file(s) under `dbt/models/bronze/contoso/`) and add `meta.dagster.asset_key: ["landing_<entity>"]` for all 7 entities (`customers`, `product`, `store`, `orders`, `orderrows`, `date`, `currencyexchange`) — additive metadata only, no source/schema change (data-model.md Capability 2, research.md Decision 5).
-- [ ] T010 `dbt parse --no-partial-parse` (from `dbt/`, as today) to confirm the `sources.yml` edits are valid YAML/Jinja and don't break dbt parsing — this must stay warehouse-independent (research.md Decision 4).
+- [x] T007 Defined the shared dbt resource in **`orchestration/src/orchestration/resources.py`** (deviation from the planned `defs/resources.py` path — `load_from_defs_folder` expects everything under `defs/` to be a Component or a definitions-producing module, not a plain helper, so it lives as a sibling of `definitions.py` instead; noted in the file's docstring). `DbtProject(project_dir=<repo>/dbt, profiles_dir=<repo>/dbt, target="dev")` + `DbtCliResource(project_dir=dbt_project)`. Verified live: `prepare_if_dev()` runs `dbt deps` + `dbt parse` and produces `dbt/target/manifest.json` with no live Fabric connection.
+- [x] T008 Added a `load_dotenv(REPO_ROOT / ".env", override=False)` call at the top of `resources.py`, before `prepare_if_dev()` — `python-dotenv==1.2.3` pinned explicitly in `requirements.txt` (was already a transitive dep, now direct since it's imported directly).
+- [x] T009 Added `meta.dagster.asset_key: ["landing_<entity>"]` to all 7 tables in `dbt/models/bronze/contoso/_contoso__sources.yml`. **Naming correction**: the customers source table is `landing_customer` (singular — the original `001` naming), not `landing_customers`; used the real name, and the matching Dagster asset in Capability 2 will be `landing_customer` too.
+- [x] T010 `dbt parse --no-partial-parse` — clean under `dbt-core==1.11.15` with the new source metadata.
 
 **Checkpoint**: shared resource config exists; all 7 landing sources carry the asset-key metadata; dbt still parses cleanly outside Dagster.
 
@@ -56,11 +56,13 @@ layer. `[C1]`/`[C2]`/`[C3]` labels map to spec.md's Capability 1/2/3.
 
 **Independent test**: `dagster dev` shows one asset per dbt model with correct lineage and loads with zero code-location errors, including when Fabric is unreachable (quickstart Scenario 1); materializing the graph matches `poe dbt build` (quickstart Scenario 2).
 
-- [ ] T011 [C1] Scaffold the dbt component: `dg scaffold defs dagster_dbt.DbtProjectComponent --project-path ../../dbt` from `orchestration/`, creating `orchestration/src/orchestration/defs/dbt_ingest/defs.yaml`.
-- [ ] T012 [C1] Configure `defs.yaml`: `project` path to `dbt/`, `profiles_dir`/`target` from T007's resource, per-layer `translation.group_name` (`bronze`/`silver`/`gold`/`serving`) so the UI groups match the medallion layers, and `DagsterDbtTranslatorSettings(enable_asset_checks=True)` so dbt tests surface as asset checks (FR-003) — add a small `template_vars.py` if the YAML config alone can't express the translator settings.
-- [ ] T013 [C1] Run `poe dagster dev` and verify: zero code-location load errors, all 33 dbt models present as assets grouped by layer, lineage matches `dbt ls`/the manifest (quickstart Scenario 1) — do this **without** an active Fabric session first, to confirm manifest prep (`dbt parse`) doesn't need one (research.md Decision 4).
-- [ ] T014 [C1] With `az login` active, materialize the full dbt-asset selection from the UI (landing tables already populated from prior manual `poe dbt`/`run-operation` use); confirm it matches `poe dbt build` — same models run, all dbt tests pass as asset checks (quickstart Scenario 2, SC-003).
-- [ ] T015 [C1] **Decision checkpoint**: if T011–T014 hit an undocumented `DbtProjectComponent`/`dg` gap that blocks progress, apply the Decision 8 fallback (classic `dagster.Definitions` + `@dbt_assets` in `orchestration/src/orchestration/definitions.py`) and record the specific error + the fallback choice in `research.md` and AGENT.md §12. Otherwise, mark not-applicable.
+- [x] T011 [C1] Scaffolded the dbt component (`dg scaffold defs dagster_dbt.DbtProjectComponent dbt_ingest --project-path ../dbt`) and configured `defs.yaml` (`project.project_dir`/`profiles_dir`/`target`, `translation_settings.enable_asset_checks`). **Later removed** — see T015.
+- [x] T012 [C1] Configured (then superseded by T015's fallback — see below).
+- [x] T013 [C1] Verified via `dg check defs` / `dg list defs` (equivalent to `dagster dev` loading): zero code-location load errors, **exactly 33 dbt-model assets** (7 bronze + 12 silver + 7 gold + 7 serving — matches data-model.md), dbt tests present as asset checks. Confirmed stable across 3 consecutive reloads. Done entirely **without** `az login`/a live Fabric session — only `dbt parse` runs at load time (research.md Decision 4), proving the code location is inspectable even during a Fabric outage.
+- [ ] T014 [C1] **Blocked** — materializing needs a live Fabric session (`dbt build` actually executing against Spark). The Azure CLI refresh token is expired (conditional-access sign-in-frequency, 24h max lifetime) and needs an interactive `az login` this session cannot perform. Deferred until the user re-authenticates.
+- [x] T015 [C1] **Decision checkpoint — fallback taken.** `DbtProjectComponent` hit a real, reproducible (not transient) Windows `PermissionError [WinError 5]` rebuilding its `.local_defs_state` cache on every reload after the first (see research.md Decision 8 "Outcome" for the full sequence, including a separate long-path issue found and fixed along the way). Replaced with classic `@dbt_assets` (`orchestration/src/orchestration/dbt_assets.py`) + a hand-assembled `Definitions` (`orchestration/src/orchestration/definitions.py`) — no component, no `defs/` auto-discovery for the dbt piece. Recorded in research.md Decision 8 and AGENT.md §12.
+
+**Structure note**: the final Capability 1 layout differs from plan.md's original sketch (`defs/dbt_ingest/defs.yaml`) — it's now `orchestration/src/orchestration/{env.py, resources.py, dbt_assets.py, definitions.py}`, no Components/`defs/` folder content. `defs/` is currently empty (kept for potential future Component use, e.g. if `dagster-dbt` fixes the caching issue or the environment moves out of a synced folder).
 
 **Checkpoint**: Capability 1 is independently useful — the whole dbt project is observable, runnable, and testable from Dagster.
 
@@ -72,8 +74,8 @@ layer. `[C1]`/`[C2]`/`[C3]` labels map to spec.md's Capability 1/2/3.
 
 **Independent test**: materializing one `landing_<entity>` asset lands that entity correctly (quickstart Scenario 3, single-asset part); materializing the whole graph from a clean landing state reproduces known-good serving row counts and stays idempotent on rerun (quickstart Scenarios 3–4).
 
-- [ ] T016 [P] [C2] Create `orchestration/src/orchestration/defs/landing/landing_assets.py` with a shared helper (upload via the logic in `scripts/upload_to_onelake.py` + `dbt run-operation bootstrap_landing_table` via the T007 dbt resource) parameterized by entity.
-- [ ] T017 [P] [C2] Define the `landing_customers` asset (asset key `landing_customers`) using the T016 helper with `customers`' known columns; emit `entity`, `csv_path`, `landed_row_count` metadata (FR-009).
+- [ ] T016 [P] [C2] Create **`orchestration/src/orchestration/landing_assets.py`** (path corrected from the original `defs/landing/landing_assets.py` — no `defs/` auto-discovery in this project, see T015/plan.md) with a shared helper (upload via the logic in `scripts/upload_to_onelake.py` + `dbt run-operation bootstrap_landing_table` via the T007 `dbt_resource`) parameterized by entity.
+- [ ] T017 [P] [C2] Define the `landing_customer` asset (asset key `landing_customer`, **singular** — matches the real dbt source table name, T009's naming correction) using the T016 helper with `customer`'s known columns; emit `entity`, `csv_path`, `landed_row_count` metadata (FR-009).
 - [ ] T018 [P] [C2] Define the `landing_product` asset.
 - [ ] T019 [P] [C2] Define the `landing_store` asset.
 - [ ] T020 [P] [C2] Define the `landing_orders` asset.
@@ -96,7 +98,7 @@ layer. `[C1]`/`[C2]`/`[C3]` labels map to spec.md's Capability 1/2/3.
 
 **Independent test**: manually triggering the job reproduces the existing delta-load acceptance criteria from `002` (quickstart Scenario 5); the schedule is stopped by default and, once enabled, one tick reproduces the same result (quickstart Scenario 6).
 
-- [ ] T029 [C3] Create `orchestration/src/orchestration/defs/schedules.py` with `delta_load_job`: run each existing `scripts/simulate_delta_load/<entity>.py` that has one (small, configurable `--new`/`--updated` counts), then select and re-materialize the `landing_*` → dbt-asset graph (`define_asset_job` over that selection).
+- [ ] T029 [C3] Create **`orchestration/src/orchestration/schedules.py`** (path corrected — see T016) with `delta_load_job`: run each existing `scripts/simulate_delta_load/<entity>.py` that has one (small, configurable `--new`/`--updated` counts), then select and re-materialize the `landing_*` → dbt-asset graph (`define_asset_job` over that selection).
 - [ ] T030 [C3] Add `delta_load_schedule` targeting `delta_load_job`: `cron_schedule` read from config (default `"0 */6 * * *"`), `default_status=DefaultScheduleStatus.STOPPED` (FR-011, NFR-005, research.md Decisions 6–7).
 - [ ] T031 [C3] Trigger `delta_load_job` manually; verify per entity: bronze grows by exactly N rows, SCD2 silver (dimensions: customers/product/store) adds correctly-versioned rows for the M updates, SCD1 silver (facts: orders/orderrows) overwrites in place — matching `002`'s acceptance criteria (quickstart Scenario 5, SC-005).
 - [ ] T032 [C3] Re-run `delta_load_job` immediately with no new simulation; confirm no row-count changes in any layer (idempotent).

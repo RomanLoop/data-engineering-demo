@@ -14,6 +14,14 @@
 #   poe dbt run-operation bootstrap_landing_table --args '{entity: product, ...}'
 #   poe lint
 #   poe upload --local data/contoso/product.csv --remote Files/contoso/product.csv
+#   poe dagster dev
+#
+# `orchestration/` is its own dg/Components-managed Dagster project (its own
+# pyproject.toml, specs/003-dagster-orchestration) — dependencies still install
+# into this single repo .venv via requirements.txt, never via `uv`/a second venv
+# (research.md Decision 1/2). No DAGSTER_HOME is set, so `dagster dev` runs
+# against Dagster's default ephemeral local instance (no persistent run history
+# between restarts) — matches Stage 1's "no always-on service" posture.
 #
 # `[tool.poe.executor]` runs every task inside the project-local `.venv`.
 # If your venv lives elsewhere, change `location`; or delete the
@@ -47,3 +55,8 @@ help = "Upload a local file to the lakehouse OneLake Files area (flags: --local 
 [tool.poe.tasks.simulate]
 cmd = "python"
 help = "Run a delta-load simulator, e.g. poe simulate scripts/simulate_delta_load/contoso_product.py --new 20 --updated 10"
+
+[tool.poe.tasks.dagster]
+cmd = "dagster"
+cwd = "orchestration"
+help = "Run dagster (e.g. `poe dagster dev`) from orchestration/ with .env loaded"

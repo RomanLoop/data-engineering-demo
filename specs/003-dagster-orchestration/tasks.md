@@ -74,19 +74,19 @@ layer. `[C1]`/`[C2]`/`[C3]` labels map to spec.md's Capability 1/2/3.
 
 **Independent test**: materializing one `landing_<entity>` asset lands that entity correctly (quickstart Scenario 3, single-asset part); materializing the whole graph from a clean landing state reproduces known-good serving row counts and stays idempotent on rerun (quickstart Scenarios 3–4).
 
-- [ ] T016 [P] [C2] Create **`orchestration/src/orchestration/landing_assets.py`** (path corrected from the original `defs/landing/landing_assets.py` — no `defs/` auto-discovery in this project, see T015/plan.md) with a shared helper (upload via the logic in `scripts/upload_to_onelake.py` + `dbt run-operation bootstrap_landing_table` via the T007 `dbt_resource`) parameterized by entity.
-- [ ] T017 [P] [C2] Define the `landing_customer` asset (asset key `landing_customer`, **singular** — matches the real dbt source table name, T009's naming correction) using the T016 helper with `customer`'s known columns; emit `entity`, `csv_path`, `landed_row_count` metadata (FR-009).
-- [ ] T018 [P] [C2] Define the `landing_product` asset.
-- [ ] T019 [P] [C2] Define the `landing_store` asset.
-- [ ] T020 [P] [C2] Define the `landing_orders` asset.
-- [ ] T021 [P] [C2] Define the `landing_orderrows` asset.
-- [ ] T022 [P] [C2] Define the `landing_date` asset.
-- [ ] T023 [P] [C2] Define the `landing_currencyexchange` asset.
-- [ ] T024 [C2] Restart `dagster dev` and confirm each `bronze_contoso__<entity>` asset now shows the matching `landing_<entity>` asset as its sole upstream dependency (T009's `meta.dagster.asset_key` resolving correctly) — no dangling or duplicated asset keys.
-- [ ] T025 [C2] Materialize `landing_orders` alone; confirm the CSV lands in OneLake, `landing.landing_orders` is rebuilt, and the row-count metadata matches the source CSV (quickstart Scenario 3, single-asset part).
-- [ ] T026 [C2] Materialize the full graph from the `landing_*` assets down; confirm all seven entities build through serving with the known-good row counts (customers 105,495 / product 2,545 / store 76 / date 4,033 / currencyexchange 100,475 / orders 980,966 / orderrows 2,349,591) — quickstart Scenario 3, full-chain part; SC-001.
-- [ ] T027 [C2] Inspect the dbt invocations/logs from T026 and confirm no `--full-refresh` flag was ever issued against `bronze_contoso__orders` / `bronze_contoso__orderrows` (FR-008; these models raise a compiler error if it is).
-- [ ] T028 [C2] Immediately re-materialize the full graph with no source changes; confirm every layer's row count is unchanged (idempotent — quickstart Scenario 4, NFR-001).
+- [x] T016 [P] [C2] Created **`orchestration/src/orchestration/landing_assets.py`** (path corrected — no `defs/` auto-discovery, see T015/plan.md). Shared `_make_landing_asset(config)` factory: uploads via `scripts/upload_to_onelake.py`'s `upload()` (loaded by file path — `scripts/` isn't a package) then runs the matching dbt bootstrap macro via the T007 `dbt_resource`.
+- [x] T017 [P] [C2] `landing_customer` asset — **singular**, matches the real dbt source table (T009). Uses the dedicated no-arg `bootstrap_landing_customer` macro (the one asymmetric entity — predates the generalized macro), not `bootstrap_landing_table`. Emits `entity`/`csv_path` always, `landed_row_count` best-effort (a `dbt show --output json` probe, untested live — Fabric unreachable; wrapped so a parse miss omits the field rather than failing the asset).
+- [x] T018 [P] [C2] `landing_product` asset — columns mirror `002`'s quickstart.md `bootstrap_landing_table` args.
+- [x] T019 [P] [C2] `landing_store` asset — same pattern.
+- [x] T020 [P] [C2] `landing_orders` asset — same pattern.
+- [x] T021 [P] [C2] `landing_orderrows` asset — same pattern.
+- [x] T022 [P] [C2] `landing_date` asset — same pattern.
+- [x] T023 [P] [C2] `landing_currencyexchange` asset — same pattern.
+- [x] T024 [C2] Verified via the definitions object directly (`asset_graph.get(key).parent_keys`) — equivalent to inspecting `dagster dev`'s lineage graph. **Confirmed**: every `bronze_contoso__<entity>` asset resolves exactly one upstream — its matching `landing_<entity>` — including `bronze_contoso__customers ← landing_customer` (the plural/singular naming asymmetry resolves correctly). No dangling or duplicated keys. Zero live Fabric connection needed for this check.
+- [ ] T025 [C2] **Blocked** — needs a live Fabric session to actually materialize (upload + bootstrap + verify row count). Same `az login` blocker as T014.
+- [ ] T026 [C2] **Blocked** — same reason.
+- [ ] T027 [C2] **Blocked** — same reason (needs a real run's logs to inspect).
+- [ ] T028 [C2] **Blocked** — same reason.
 
 **Checkpoint**: the full upload→land→bronze→…→serving chain runs as one Dagster graph, and reruns stay idempotent.
 
@@ -98,11 +98,11 @@ layer. `[C1]`/`[C2]`/`[C3]` labels map to spec.md's Capability 1/2/3.
 
 **Independent test**: manually triggering the job reproduces the existing delta-load acceptance criteria from `002` (quickstart Scenario 5); the schedule is stopped by default and, once enabled, one tick reproduces the same result (quickstart Scenario 6).
 
-- [ ] T029 [C3] Create **`orchestration/src/orchestration/schedules.py`** (path corrected — see T016) with `delta_load_job`: run each existing `scripts/simulate_delta_load/<entity>.py` that has one (small, configurable `--new`/`--updated` counts), then select and re-materialize the `landing_*` → dbt-asset graph (`define_asset_job` over that selection).
-- [ ] T030 [C3] Add `delta_load_schedule` targeting `delta_load_job`: `cron_schedule` read from config (default `"0 */6 * * *"`), `default_status=DefaultScheduleStatus.STOPPED` (FR-011, NFR-005, research.md Decisions 6–7).
-- [ ] T031 [C3] Trigger `delta_load_job` manually; verify per entity: bronze grows by exactly N rows, SCD2 silver (dimensions: customers/product/store) adds correctly-versioned rows for the M updates, SCD1 silver (facts: orders/orderrows) overwrites in place — matching `002`'s acceptance criteria (quickstart Scenario 5, SC-005).
-- [ ] T032 [C3] Re-run `delta_load_job` immediately with no new simulation; confirm no row-count changes in any layer (idempotent).
-- [ ] T033 [C3] Confirm `delta_load_schedule` lists as `STOPPED` by default (`poe dagster schedule list` or the UI); enable it and confirm one tick (or `dagster schedule test`) reproduces T031's outcome (quickstart Scenario 6).
+- [x] T029 [C3] Created **`orchestration/src/orchestration/schedules.py`**. Implemented as a `delta_simulation` asset (runs all 7 `scripts/simulate_delta_load/*.py` with small `--new`/`--updated` counts) that every `landing_<entity>` asset declares as an extra dependency — so `delta_load_job = define_asset_job("delta_load_job", selection=AssetSelection.all())` naturally runs simulate → land → bronze → … → serving in dependency order, in one job, with no bolted-on op ahead of the asset graph. Verified: all 7 `landing_*` assets show `delta_simulation` as a parent; total asset count 41 (33 dbt + 7 landing + 1 delta_simulation).
+- [x] T030 [C3] Added `delta_load_schedule` (`name="delta_load_schedule"` set explicitly — Dagster would otherwise auto-name it `delta_load_job_schedule`), `cron_schedule="0 */6 * * *"`, `default_status=DefaultScheduleStatus.STOPPED`. Verified via direct inspection: listed as `STOPPED`.
+- [ ] T031 [C3] **Blocked** — needs a live Fabric session to actually trigger the job. Same `az login` blocker as T014/T025.
+- [ ] T032 [C3] **Blocked** — same reason.
+- [ ] T033 [C3] **Blocked** — same reason (schedule status/naming already verified structurally above; only the "one tick reproduces T031" live check remains).
 
 **Checkpoint**: continuous delta-load regression signal exists and is opt-in, not automatically hammering Fabric.
 
@@ -112,10 +112,10 @@ layer. `[C1]`/`[C2]`/`[C3]` labels map to spec.md's Capability 1/2/3.
 
 **Purpose**: documentation, secrets hygiene, and a final regression pass across the whole feature.
 
-- [ ] T034 [P] Update `AGENT.md` §10 (mark roadmap item 7 done) and add a §12 decision entry summarizing the Dagster integration: `dg`/Components + pip (not `uv`), `DbtProjectComponent` pointed at `dbt/` in place, `meta.dagster.asset_key` wiring, schedule stopped-by-default, and the Decision 8 fallback outcome (taken or not).
-- [ ] T035 [P] Update the root `README.md` (currently a stub) with a short "how to run the pipeline via Dagster" section (`poe dagster dev`, where the schedule lives, how to enable it).
-- [ ] T036 Run the secrets scan from quickstart Scenario 7 across `orchestration/` (grep for workspace/lakehouse/tenant/secret literals) — confirm clean (NFR-003, constitution VI).
-- [ ] T037 Confirm `requirements.txt` + `requirements.lock.txt` reflect the final dependency set and that only the project `.venv` has them installed (`pip list` sanity check against a clean shell — AGENT.md §2).
+- [x] T034 [P] Added `AGENT.md` §12 decision 13 summarizing the integration so far (dbt-core downgrade, Components→classic fallback, 33+7+1=41 assets, blockers). **Not** marking §10 roadmap item 7 done yet — Capabilities 2/3 are unverified live (T025-T028, T031-T033 all blocked on `az login`); will update once those pass.
+- [x] T035 [P] Updated the root `README.md` (was a one-line stub) with setup steps + a "Running the pipeline via Dagster" section (`poe dagster dev`, what the graph contains, the schedule and how to enable it).
+- [x] T036 Ran the secrets scan across `orchestration/` (grep for workspace/lakehouse/tenant/secret literals) — clean, only a gitignored `.pyc` cache file matched (NFR-003, constitution VI).
+- [x] T037 Confirmed `requirements.txt`/`requirements.lock.txt` reflect the final dependency set (incl. the `pip install -e ./orchestration --no-deps` one-time step, documented in `requirements.txt`) and that only `.venv` has them: `dagster` is not importable from the Store/global Python (`ModuleNotFoundError`), confirming no global install (AGENT.md §2).
 - [ ] T038 Run `poe dbt build` directly (bypassing Dagster) and confirm it still passes unchanged (79/79 total node results — 33 models + 46 tests) — proves the orchestration layer didn't alter dbt project behavior (FR-015).
 
 ---

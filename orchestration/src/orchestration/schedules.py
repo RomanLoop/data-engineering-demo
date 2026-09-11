@@ -55,8 +55,18 @@ DEFAULT_CRON_SCHEDULE = "0 */6 * * *"
 def delta_simulation(context: AssetExecutionContext) -> None:
     for entity, script in SIMULATOR_SCRIPTS.items():
         script_path = REPO_ROOT / "scripts" / "simulate_delta_load" / script
+        # currencyexchange's simulator has a different CLI (--new-date, not
+        # --new -- rates are appended per-date, not per-row) -- found live
+        # 2026-09-11: argparse's prefix matching silently resolved a passed
+        # `--new 5` to `--new-date 5`, which then failed trying to parse "5"
+        # as an ISO date. Every other simulator shares the --new/--updated
+        # interface.
+        if entity == "currencyexchange":
+            args = ["--updated", str(DEFAULT_UPDATED)]
+        else:
+            args = ["--new", str(DEFAULT_NEW), "--updated", str(DEFAULT_UPDATED)]
         result = subprocess.run(
-            [sys.executable, str(script_path), "--new", str(DEFAULT_NEW), "--updated", str(DEFAULT_UPDATED)],
+            [sys.executable, str(script_path), *args],
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,
